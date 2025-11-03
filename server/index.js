@@ -26,6 +26,7 @@ const io = new Server(server, {
 const ROLES = ["A", "B", "C", "D", "E", "F"];
 const playerData = {}; // { socketId: { name, role, group } }
 
+// присвоєння першої вільної ролі в групі
 function assignRoleForGroup(group) {
   const taken = Object.values(playerData)
     .filter((p) => p.group === group)
@@ -73,17 +74,19 @@ io.on("connection", (socket) => {
   socket.on("reconnect_user", ({ name, role, group }, callback) => {
     if (!name || !role || !group) return callback({ ok: false, error: "Некоректні дані" });
 
-    // Перевіримо, чи вже хтось із цією роллю в групі
-    const existing = Object.values(playerData).find(
-      (p) => p.role === role && p.group === group
+    group = parseInt(group) || 1;
+
+    // перевіряємо, чи роль зайнята кимось іншим
+    const roleTaken = Object.values(playerData).some(
+      (p) => p.group === group && p.role === role && p.name !== name
     );
 
-    if (existing) {
-      console.log(`⚠️ Role ${role} у групі ${group} вже зайнята, не можна відновити ${name}`);
-      return callback({ ok: false, error: "Роль уже зайнята" });
+    if (roleTaken) {
+      console.log(`⚠️ Reconnect denied: role ${role} in group ${group} is already taken`);
+      return callback({ ok: false, reason: "role_taken" });
     }
 
-    // Відновлюємо користувача
+    // роль вільна — відновлюємо користувача
     playerData[socket.id] = { name, role, group };
     console.log(`🔄 Reconnected user ${name} (${role}) group ${group}`);
 
