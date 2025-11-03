@@ -12,11 +12,35 @@ body{
   color:#111827;
 }
 
-.app { max-width:900px; margin:24px auto; padding:16px; }
-.card { background:var(--card); border-radius:12px; padding:12px; box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
-.header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-.input, textarea, select, button { font-family:inherit; }
-textarea { resize:none; }
+.app {
+  max-width:900px;
+  margin:24px auto;
+  padding:16px;
+}
+
+.card {
+  background:var(--card);
+  border-radius:12px;
+  padding:12px;
+  box-shadow: 0 6px 18px rgba(15,23,42,0.06);
+}
+
+.header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:12px;
+}
+
+.input, textarea, select, button {
+  font-family:inherit;
+}
+
+textarea {
+  resize:none;
+}
+
+/* messenger styles simplified */
 .msg-row { display:flex; margin:6px 0; }
 .msg-left { margin-right:auto; background:#eee; padding:8px 10px; border-radius:10px; max-width:75%; }
 .msg-right { margin-left:auto; background:var(--accent); color:#fff; padding:8px 10px; border-radius:10px; max-width:75%; }
