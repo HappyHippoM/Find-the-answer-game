@@ -48,10 +48,21 @@ io.on("connection", (socket) => {
   console.log("🔗 New connection:", socket.id);
   socket.emit("group_count", GROUPS);
 
+  // ---------- 🔹 CHECK NAME ----------
+  socket.on("check_name", ({ name }, callback) => {
+    const exists = Object.values(playerData).some((p) => p.name === name);
+    callback({ exists });
+  });
+
   // ---------- 🔹 РЕЄСТРАЦІЯ ----------
   socket.on("register", ({ name, group }, callback) => {
     group = parseInt(group) || 1;
     if (group < 1 || group > GROUPS) group = 1;
+
+    // перевірка, чи ім'я вже існує
+    if (Object.values(playerData).some((p) => p.name === name)) {
+      return callback({ ok: false, error: "Користувач з таким ім'ям вже в грі" });
+    }
 
     const role = assignRoleForGroup(group);
     if (!role) return callback({ ok: false, error: "Усі ролі в цій групі зайняті" });
@@ -76,7 +87,6 @@ io.on("connection", (socket) => {
 
     group = parseInt(group) || 1;
 
-    // перевіряємо, чи роль зайнята кимось іншим
     const roleTaken = Object.values(playerData).some(
       (p) => p.group === group && p.role === role && p.name !== name
     );
@@ -86,7 +96,6 @@ io.on("connection", (socket) => {
       return callback({ ok: false, reason: "role_taken" });
     }
 
-    // роль вільна — відновлюємо користувача
     playerData[socket.id] = { name, role, group };
     console.log(`🔄 Reconnected user ${name} (${role}) group ${group}`);
 
