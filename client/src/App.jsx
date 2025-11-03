@@ -13,9 +13,10 @@ export default function App() {
   const [groupCount, setGroupCount] = useState(1);
 
   const [name, setName] = useState("");
-  const [role, setRole] = useState("");
+  const [role, setRole] = useState(null); // null поки сервер не підтвердить
   const [group, setGroup] = useState(1);
   const [cardImage, setCardImage] = useState("");
+  const [loading, setLoading] = useState(true); // стан для очікування відповіді сервера
 
   const [messages, setMessages] = useState({});
   const [reply, setReply] = useState({});
@@ -44,7 +45,7 @@ export default function App() {
 
     socket.on("game_result", ({ message }) => alert(message));
 
-    // Перевірка localStorage для автоматичного reconnect
+    // ---------- 🔹 Автоматичне відновлення користувача ----------
     const savedName = localStorage.getItem(LS_PREFIX + "name");
     const savedRole = localStorage.getItem(LS_PREFIX + "role");
     const savedGroup = Number(localStorage.getItem(LS_PREFIX + "group") || 1);
@@ -63,8 +64,11 @@ export default function App() {
             // Роль зайнята або сервер не дозволив — очищаємо localStorage
             clearLocal();
           }
+          setLoading(false); // завершено перевірку
         }
       );
+    } else {
+      setLoading(false);
     }
 
     return () => socket.removeAllListeners();
@@ -90,7 +94,7 @@ export default function App() {
     localStorage.removeItem(LS_PREFIX + "group");
     localStorage.removeItem(LS_PREFIX + "card");
     setName("");
-    setRole("");
+    setRole(null);
     setGroup(1);
     setCardImage("");
   };
@@ -131,7 +135,11 @@ export default function App() {
     socket.emit("logout");
   };
 
-  // ---------- UI ----------
+  // ---------- 🔹 UI ----------
+  if (loading) {
+    return <div className="app">Перевірка доступності ролі...</div>;
+  }
+
   if (!role) {
     return (
       <div className="app">
