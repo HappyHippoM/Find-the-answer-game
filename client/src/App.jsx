@@ -13,10 +13,10 @@ export default function App() {
   const [groupCount, setGroupCount] = useState(1);
 
   const [name, setName] = useState("");
-  const [role, setRole] = useState(null); // null поки сервер не підтвердить
+  const [role, setRole] = useState(null);
   const [group, setGroup] = useState(1);
   const [cardImage, setCardImage] = useState("");
-  const [loading, setLoading] = useState(true); // стан для очікування відповіді сервера
+  const [loading, setLoading] = useState(true);
 
   const [messages, setMessages] = useState({});
   const [reply, setReply] = useState({});
@@ -25,7 +25,6 @@ export default function App() {
   useEffect(() => {
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
-
     socket.on("group_count", (c) => setGroupCount(c));
 
     socket.on("registered", ({ role: r, name: nm, group: g }) => {
@@ -33,7 +32,7 @@ export default function App() {
       setRole(r);
       setGroup(g);
       setCardImage(card);
-      saveToLocal(nm, r, g, card);
+      saveToLocalName(nm);
     });
 
     socket.on("private_message", ({ fromRole, fromName, text }) => {
@@ -45,28 +44,19 @@ export default function App() {
 
     socket.on("game_result", ({ message }) => alert(message));
 
-    // ---------- 🔹 Автоматичне відновлення користувача ----------
+    // ---------- 🔹 Перевірка існування імені ----------
     const savedName = localStorage.getItem(LS_PREFIX + "name");
-    const savedRole = localStorage.getItem(LS_PREFIX + "role");
-    const savedGroup = Number(localStorage.getItem(LS_PREFIX + "group") || 1);
-
-    if (savedName && savedRole && savedGroup) {
-      socket.emit(
-        "reconnect_user",
-        { name: savedName, role: savedRole, group: savedGroup },
-        (res) => {
-          if (res?.ok) {
-            setName(savedName);
-            setRole(res.role || savedRole);
-            setGroup(res.group || savedGroup);
-            setCardImage(`/cards/${res.role || savedRole}.jpg`);
-          } else {
-            // Роль зайнята або сервер не дозволив — очищаємо localStorage
-            clearLocal();
-          }
-          setLoading(false); // завершено перевірку
+    if (savedName) {
+      socket.emit("check_name", { name: savedName }, (res) => {
+        if (res.exists) {
+          // Користувач з таким ім'ям вже в грі → показуємо реєстрацію
+          clearLocal();
+        } else {
+          // Користувач не знайдений → можна реєструватися автоматично
+          setName(savedName);
         }
-      );
+        setLoading(false);
+      });
     } else {
       setLoading(false);
     }
@@ -81,18 +71,12 @@ export default function App() {
     });
   }, [messages]);
 
-  const saveToLocal = (nm, r, g, card) => {
+  const saveToLocalName = (nm) => {
     localStorage.setItem(LS_PREFIX + "name", nm);
-    localStorage.setItem(LS_PREFIX + "role", r);
-    localStorage.setItem(LS_PREFIX + "group", String(g));
-    localStorage.setItem(LS_PREFIX + "card", card);
   };
 
   const clearLocal = () => {
     localStorage.removeItem(LS_PREFIX + "name");
-    localStorage.removeItem(LS_PREFIX + "role");
-    localStorage.removeItem(LS_PREFIX + "group");
-    localStorage.removeItem(LS_PREFIX + "card");
     setName("");
     setRole(null);
     setGroup(1);
@@ -112,7 +96,7 @@ export default function App() {
       const card = `/cards/${res.role}.jpg`;
       setRole(res.role);
       setCardImage(card);
-      saveToLocal(name.trim(), res.role, group, card);
+      saveToLocalName(name.trim());
     });
   };
 
@@ -135,10 +119,8 @@ export default function App() {
     socket.emit("logout");
   };
 
-  // ---------- 🔹 UI ----------
-  if (loading) {
-    return <div className="app">Перевірка доступності ролі...</div>;
-  }
+  // ---------- UI ----------
+  if (loading) return <div className="app">Перевірка доступності ролі...</div>;
 
   if (!role) {
     return (
