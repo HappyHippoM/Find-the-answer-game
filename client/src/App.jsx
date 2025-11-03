@@ -10,27 +10,31 @@ const ROLES = ["A", "B", "C", "D", "E", "F"];
 export default function App() {
   const [connected, setConnected] = useState(false);
   const [groupCount, setGroupCount] = useState(1);
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("");
-  const [group, setGroup] = useState(1);
-  const [cardImage, setCardImage] = useState("");
+  const [name, setName] = useState(localStorage.getItem("fta_name") || "");
+  const [role, setRole] = useState(localStorage.getItem("fta_role") || "");
+  const [group, setGroup] = useState(Number(localStorage.getItem("fta_group")) || 1);
+  const [cardImage, setCardImage] = useState(localStorage.getItem("fta_card") || "");
   const [messages, setMessages] = useState({});
   const [reply, setReply] = useState({});
-  const [finalAnswer, setFinalAnswer] = useState("");
   const scrollRefs = useRef({});
 
   useEffect(() => {
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
-
     socket.on("group_count", (c) => setGroupCount(c));
+
     socket.on("registered", ({ role: r, name: nm, group: g }) => {
+      const card = `/cards/${r}.jpg`;
       setRole(r);
       setGroup(g);
+      setCardImage(card);
+      localStorage.setItem("fta_name", nm);
+      localStorage.setItem("fta_role", r);
+      localStorage.setItem("fta_group", g);
+      localStorage.setItem("fta_card", card);
     });
-    socket.on("card", ({ role: r, image }) => {
-      setCardImage(image);
-    });
+
+    socket.on("card", ({ role: r, image }) => setCardImage(image));
 
     socket.on("private_message", ({ fromRole, fromName, text }) => {
       setMessages((m) => {
@@ -39,18 +43,32 @@ export default function App() {
       });
     });
 
-    socket.on("game_result", ({ message }) => {
-      alert(message);
-    });
+    socket.on("game_result", ({ message }) => alert(message));
+
+    if (!role && localStorage.getItem("fta_name")) {
+      socket.emit(
+        "reconnect_user",
+        {
+          name: localStorage.getItem("fta_name"),
+          role: localStorage.getItem("fta_role"),
+          group: Number(localStorage.getItem("fta_group")),
+        },
+        (res) => {
+          if (res.ok) {
+            setRole(res.role);
+            setCardImage(`/cards/${res.role}.jpg`);
+          } else {
+            localStorage.removeItem("fta_name");
+            localStorage.removeItem("fta_role");
+            localStorage.removeItem("fta_group");
+            localStorage.removeItem("fta_card");
+          }
+        }
+      );
+    }
 
     return () => {
-      socket.off("connect");
-      socket.off("disconnect");
-      socket.off("group_count");
-      socket.off("registered");
-      socket.off("card");
-      socket.off("private_message");
-      socket.off("game_result");
+      socket.removeAllListeners();
     };
   }, []);
 
@@ -65,15 +83,14 @@ export default function App() {
     if (!name.trim()) return alert("Введіть ім'я");
     socket.emit("register", { name, group }, (res) => {
       if (!res.ok) return alert(res.error || "Помилка реєстрації");
+      const card = `/cards/${res.role}.jpg`;
       setRole(res.role);
-      setCardImage(`/cards/${res.role}.jpg`);
+      setCardImage(card);
+      localStorage.setItem("fta_name", name);
+      localStorage.setItem("fta_role", res.role);
+      localStorage.setItem("fta_group", group);
+      localStorage.setItem("fta_card", card);
     });
-  };
-
-  const canSendTo = (fromRole, toRole) => {
-    if (!fromRole || !toRole) return false;
-    if (fromRole === "B") return ROLES.includes(toRole) && toRole !== "B";
-    return toRole === "B";
   };
 
   const sendMessage = (toRole) => {
@@ -89,16 +106,6 @@ export default function App() {
     });
   };
 
-  const submitFinal = () => {
-    if (!finalAnswer.trim()) return alert("Введіть відповідь");
-    socket.emit("submit_answer", { answer: finalAnswer }, (res) => {
-      if (!res.ok) return alert(res.error || "Помилка при відправці відповіді");
-      alert("Відповідь відправлена");
-      setFinalAnswer("");
-    });
-  };
-
-  // ----------------------- UI -----------------------
   if (!role) {
     return (
       <div className="app">
@@ -108,36 +115,39 @@ export default function App() {
             <div className="small">Сервер: {SERVER}</div>
           </div>
 
-          <div>
-            <label className="small">Ваше ім'я</label>
-            <input
-              className="input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ім'я..."
-              style={{ width: "100%", padding: 10, borderRadius: 8, marginBottom: 8 }}
-            />
-          </div>
+          <label className="small">Ваше ім'я</label>
+          <input
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Ім'я..."
+            style={{ width: "100%", padding: 10, borderRadius: 8, marginBottom: 8 }}
+          />
 
-          <div>
-            <label className="small">Оберіть групу</label>
-            <select
-              value={group}
-              onChange={(e) => setGroup(Number(e.target.value))}
-              style={{ padding: 10, borderRadius: 8, width: "100%" }}
-            >
-              {Array.from({ length: groupCount }, (_, i) => (
-                <option key={i + 1} value={i + 1}>
-                  Група {i + 1}
-                </option>
-              ))}
-            </select>
-          </div>
+          <label className="small">Оберіть групу</label>
+          <select
+            value={group}
+            onChange={(e) => setGroup(Number(e.target.value))}
+            style={{ padding: 10, borderRadius: 8, width: "100%" }}
+          >
+            {Array.from({ length: groupCount }, (_, i) => (
+              <option key={i + 1} value={i + 1}>
+                Група {i + 1}
+              </option>
+            ))}
+          </select>
 
           <div style={{ marginTop: 12 }}>
             <button
               onClick={register}
-              style={{ padding: "10px 14px", borderRadius: 8, background: "#4f8ef7", color: "#fff", border: "none" }}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 8,
+                background: "#4f8ef7",
+                color: "#fff",
+                border: "none",
+                width: "100%",
+              }}
             >
               Зареєструватися
             </button>
@@ -147,17 +157,17 @@ export default function App() {
     );
   }
 
-  // after registration
   return (
     <div className="app">
       <div className="card">
         <div className="header" style={{ flexDirection: "column", alignItems: "center" }}>
           <div style={{ textAlign: "center", marginBottom: 12 }}>
             <h3>Вітаємо, {name}!</h3>
-            <div className="small">Ваша роль: <strong>{role}</strong> — група {group}</div>
+            <div className="small">
+              Ваша роль: <strong>{role}</strong> — група {group}
+            </div>
           </div>
 
-          {/* картинка на ширину контейнера */}
           <img
             src={cardImage}
             alt={`card ${role}`}
@@ -172,51 +182,27 @@ export default function App() {
           />
         </div>
 
-        <div style={{ marginTop: 8 }}>
-          {role !== "B" ? (
-            <ChatPanel
-              targetRole="B"
-              messages={messages}
-              reply={reply}
-              setReply={setReply}
-              sendMessage={sendMessage}
-              name={name}
-            />
-          ) : (
-            <div>
-              <h4>Чати з учасниками</h4>
-              {ROLES.filter((r) => r !== "B").map((r) => (
-                <ChatPanel
-                  key={r}
-                  targetRole={r}
-                  messages={messages}
-                  reply={reply}
-                  setReply={setReply}
-                  sendMessage={sendMessage}
-                  name={name}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {role === "C" && (
-          <div style={{ marginTop: 12 }}>
-            <h4>Відправити фінальну відповідь</h4>
-            <input
-              value={finalAnswer}
-              onChange={(e) => setFinalAnswer(e.target.value)}
-              placeholder="Спільна фігура..."
-              style={{ width: "100%", padding: 10, borderRadius: 8 }}
-            />
-            <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
-              <button
-                onClick={submitFinal}
-                style={{ padding: "8px 12px", borderRadius: 8, background: "#10b981", color: "#fff", border: "none" }}
-              >
-                Надіслати
-              </button>
-            </div>
+        {role !== "B" ? (
+          <ChatPanel
+            targetRole="B"
+            messages={messages}
+            reply={reply}
+            setReply={setReply}
+            sendMessage={sendMessage}
+          />
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+            {ROLES.filter((r) => r !== "B").map((r) => (
+              <ChatPanel
+                key={r}
+                targetRole={r}
+                messages={messages}
+                reply={reply}
+                setReply={setReply}
+                sendMessage={sendMessage}
+                compact={true} // компактний вигляд для B
+              />
+            ))}
           </div>
         )}
       </div>
@@ -224,36 +210,48 @@ export default function App() {
   );
 }
 
-// ----------- ChatPanel Component -------------
-const ChatPanel = ({ targetRole, messages, reply, setReply, sendMessage, name }) => {
-  const scrollRefs = useRef(null);
+// ---------- ChatPanel ----------
+const ChatPanel = ({ targetRole, messages, reply, setReply, sendMessage, compact }) => {
+  const scrollRef = useRef(null);
 
   useEffect(() => {
-    const el = scrollRefs.current;
+    const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages[targetRole]]);
 
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-        <div><strong>{targetRole}</strong></div>
-      </div>
+    <div style={{ marginBottom: compact ? 8 : 12 }}>
+      <div style={{ fontWeight: "bold", marginBottom: compact ? 4 : 6 }}>{targetRole}</div>
 
       <div
-        ref={scrollRefs}
-        style={{ maxHeight: 180, overflowY: "auto", padding: 8, borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff" }}
+        ref={scrollRef}
+        style={{
+          maxHeight: compact ? 140 : 180,
+          overflowY: "auto",
+          padding: 6,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          background: "#fff",
+        }}
       >
         {(messages[targetRole] || []).map((m, i) => (
-          <div key={i} style={{ marginBottom: 6 }}>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>{m.fromRole === "me" ? "Ви" : m.fromName}</div>
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              justifyContent: m.fromRole === "me" ? "flex-end" : "flex-start",
+              marginBottom: 4,
+            }}
+          >
             <div
               style={{
                 background: m.fromRole === "me" ? "#4f8ef7" : "#f1f5f9",
                 color: m.fromRole === "me" ? "#fff" : "#111827",
-                display: "inline-block",
-                padding: "6px 10px",
+                padding: "4px 8px",
                 borderRadius: 8,
+                fontSize: 12,
                 maxWidth: "80%",
+                wordBreak: "break-word",
               }}
             >
               {m.text}
@@ -262,22 +260,34 @@ const ChatPanel = ({ targetRole, messages, reply, setReply, sendMessage, name })
         ))}
       </div>
 
-      <div style={{ marginTop: 6 }}>
-        <textarea
-          rows={3}
-          placeholder={`Відповідь ${targetRole}`}
-          value={reply[targetRole] || ""}
-          onChange={(e) => setReply({ ...reply, [targetRole]: e.target.value })}
-          style={{ width: "100%", padding: 8, borderRadius: 8, resize: "vertical" }}
-        />
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
-          <button
-            onClick={() => sendMessage(targetRole)}
-            style={{ padding: "8px 12px", borderRadius: 8, background: "#4f8ef7", color: "#fff", border: "none" }}
-          >
-            Надіслати
-          </button>
-        </div>
+      <textarea
+        rows={2}
+        placeholder={`Відповідь ${targetRole}`}
+        value={reply[targetRole] || ""}
+        onChange={(e) => setReply({ ...reply, [targetRole]: e.target.value })}
+        style={{
+          width: "100%",
+          padding: 6,
+          borderRadius: 8,
+          resize: "vertical",
+          marginTop: 4,
+          fontSize: 12,
+        }}
+      />
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+        <button
+          onClick={() => sendMessage(targetRole)}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            background: "#4f8ef7",
+            color: "#fff",
+            border: "none",
+            fontSize: 12,
+          }}
+        >
+          Надіслати
+        </button>
       </div>
     </div>
   );
