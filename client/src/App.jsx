@@ -14,7 +14,7 @@ export default function App() {
   const [role, setRole] = useState("");
   const [group, setGroup] = useState(1);
   const [cardImage, setCardImage] = useState("");
-  const [messages, setMessages] = useState({}); // { role: [{fromName, text, fromRole}] }
+  const [messages, setMessages] = useState({});
   const [reply, setReply] = useState({});
   const [finalAnswer, setFinalAnswer] = useState("");
   const scrollRefs = useRef({});
@@ -29,7 +29,6 @@ export default function App() {
       setGroup(g);
     });
     socket.on("card", ({ role: r, image }) => {
-      // image = /cards/A.jpg
       setCardImage(image);
     });
 
@@ -56,7 +55,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // автоскрол кожного чату якщо нові повідомлення
     Object.keys(scrollRefs.current).forEach((k) => {
       const el = scrollRefs.current[k];
       if (el) el.scrollTop = el.scrollHeight;
@@ -83,7 +81,6 @@ export default function App() {
     if (!text) return;
     socket.emit("send_message", { toRole, text }, (res) => {
       if (!res.ok) return alert(res.error || "Помилка при відправці");
-      // показати локально як відправлене
       setMessages((m) => {
         const prev = m[toRole] || [];
         return { ...m, [toRole]: [...prev, { fromName: name, text, fromRole: "me" }] };
@@ -101,7 +98,7 @@ export default function App() {
     });
   };
 
-  // UI -------------------------------------------------
+  // ----------------------- UI -----------------------
   if (!role) {
     return (
       <div className="app">
@@ -118,13 +115,17 @@ export default function App() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ім'я..."
-              style={{ width: "100%", padding: 8, borderRadius: 8, marginBottom: 8 }}
+              style={{ width: "100%", padding: 10, borderRadius: 8, marginBottom: 8 }}
             />
           </div>
 
           <div>
             <label className="small">Оберіть групу</label>
-            <select value={group} onChange={(e) => setGroup(Number(e.target.value))} style={{ padding: 8, borderRadius: 8, width: "100%" }}>
+            <select
+              value={group}
+              onChange={(e) => setGroup(Number(e.target.value))}
+              style={{ padding: 10, borderRadius: 8, width: "100%" }}
+            >
               {Array.from({ length: groupCount }, (_, i) => (
                 <option key={i + 1} value={i + 1}>
                   Група {i + 1}
@@ -134,7 +135,10 @@ export default function App() {
           </div>
 
           <div style={{ marginTop: 12 }}>
-            <button onClick={register} style={{ padding: "10px 14px", borderRadius: 8, background: "#4f8ef7", color: "#fff", border: "none" }}>
+            <button
+              onClick={register}
+              style={{ padding: "10px 14px", borderRadius: 8, background: "#4f8ef7", color: "#fff", border: "none" }}
+            >
               Зареєструватися
             </button>
           </div>
@@ -143,75 +147,54 @@ export default function App() {
     );
   }
 
-  // after registration view
+  // after registration
   return (
     <div className="app">
       <div className="card">
-        <div className="header">
-          <div>
+        <div className="header" style={{ flexDirection: "column", alignItems: "center" }}>
+          <div style={{ textAlign: "center", marginBottom: 12 }}>
             <h3>Вітаємо, {name}!</h3>
             <div className="small">Ваша роль: <strong>{role}</strong> — група {group}</div>
           </div>
-          <div>
-            <img src={cardImage} alt={`card ${role}`} style={{ width: 96, height: 96, borderRadius: 8, objectFit: "cover" }} />
-          </div>
+
+          {/* картинка на ширину контейнера */}
+          <img
+            src={cardImage}
+            alt={`card ${role}`}
+            style={{
+              width: "100%",
+              maxWidth: 400,
+              borderRadius: 12,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              objectFit: "cover",
+              marginBottom: 16,
+            }}
+          />
         </div>
 
         <div style={{ marginTop: 8 }}>
           {role !== "B" ? (
-            <div>
-              <h4>Чат з B</h4>
-
-              <div ref={(el) => (scrollRefs.current["B"] = el)} style={{ maxHeight: 200, overflowY: "auto", padding: 8, borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff" }}>
-                {(messages["B"] || []).map((m, i) => (
-                  <div key={i} style={{ marginBottom: 6 }}>
-                    <div style={{ fontSize: 12, color: "#6b7280" }}>{m.fromRole === "me" ? "Ви" : m.fromName}</div>
-                    <div style={{ background: m.fromRole === "me" ? "#4f8ef7" : "#f1f5f9", color: m.fromRole === "me" ? "#fff" : "#111827", display: "inline-block", padding: "6px 10px", borderRadius: 8, maxWidth: "80%" }}>
-                      {m.text}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ marginTop: 8 }}>
-                <textarea rows={3} placeholder="Напишіть повідомлення..." value={reply["B"] || ""} onChange={(e) => setReply({ ...reply, B: e.target.value })} style={{ width: "100%", padding: 8, borderRadius: 8 }} />
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
-                  <button onClick={() => sendMessage("B")} style={{ padding: "8px 12px", borderRadius: 8, background: "#4f8ef7", color: "#fff", border: "none" }}>
-                    Надіслати
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ChatPanel
+              targetRole="B"
+              messages={messages}
+              reply={reply}
+              setReply={setReply}
+              sendMessage={sendMessage}
+              name={name}
+            />
           ) : (
             <div>
               <h4>Чати з учасниками</h4>
               {ROLES.filter((r) => r !== "B").map((r) => (
-                <div key={r} style={{ marginBottom: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div><strong>{r}</strong></div>
-                    {/* optional: show last sender name */}
-                  </div>
-
-                  <div ref={(el) => (scrollRefs.current[r] = el)} style={{ maxHeight: 160, overflowY: "auto", padding: 8, borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", marginTop: 6 }}>
-                    {(messages[r] || []).map((m, i) => (
-                      <div key={i} style={{ marginBottom: 6 }}>
-                        <div style={{ fontSize: 12, color: "#6b7280" }}>{m.fromRole === "me" ? "Ви" : m.fromName}</div>
-                        <div style={{ background: m.fromRole === "me" ? "#4f8ef7" : "#f1f5f9", color: m.fromRole === "me" ? "#fff" : "#111827", display: "inline-block", padding: "6px 10px", borderRadius: 8, maxWidth: "80%" }}>
-                          {m.text}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ marginTop: 6 }}>
-                    <textarea rows={3} placeholder={`Відповідь ${r}`} value={reply[r] || ""} onChange={(e) => setReply({ ...reply, [r]: e.target.value })} style={{ width: "100%", padding: 8, borderRadius: 8 }} />
-                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
-                      <button onClick={() => sendMessage(r)} style={{ padding: "8px 12px", borderRadius: 8, background: "#4f8ef7", color: "#fff", border: "none" }}>
-                        Надіслати
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <ChatPanel
+                  key={r}
+                  targetRole={r}
+                  messages={messages}
+                  reply={reply}
+                  setReply={setReply}
+                  sendMessage={sendMessage}
+                  name={name}
+                />
               ))}
             </div>
           )}
@@ -220,9 +203,17 @@ export default function App() {
         {role === "C" && (
           <div style={{ marginTop: 12 }}>
             <h4>Відправити фінальну відповідь</h4>
-            <input value={finalAnswer} onChange={(e) => setFinalAnswer(e.target.value)} placeholder="Спільна фігура..." style={{ width: "100%", padding: 8, borderRadius: 8 }} />
+            <input
+              value={finalAnswer}
+              onChange={(e) => setFinalAnswer(e.target.value)}
+              placeholder="Спільна фігура..."
+              style={{ width: "100%", padding: 10, borderRadius: 8 }}
+            />
             <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={submitFinal} style={{ padding: "8px 12px", borderRadius: 8, background: "#10b981", color: "#fff", border: "none" }}>
+              <button
+                onClick={submitFinal}
+                style={{ padding: "8px 12px", borderRadius: 8, background: "#10b981", color: "#fff", border: "none" }}
+              >
                 Надіслати
               </button>
             </div>
@@ -232,3 +223,62 @@ export default function App() {
     </div>
   );
 }
+
+// ----------- ChatPanel Component -------------
+const ChatPanel = ({ targetRole, messages, reply, setReply, sendMessage, name }) => {
+  const scrollRefs = useRef(null);
+
+  useEffect(() => {
+    const el = scrollRefs.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages[targetRole]]);
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <div><strong>{targetRole}</strong></div>
+      </div>
+
+      <div
+        ref={scrollRefs}
+        style={{ maxHeight: 180, overflowY: "auto", padding: 8, borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff" }}
+      >
+        {(messages[targetRole] || []).map((m, i) => (
+          <div key={i} style={{ marginBottom: 6 }}>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>{m.fromRole === "me" ? "Ви" : m.fromName}</div>
+            <div
+              style={{
+                background: m.fromRole === "me" ? "#4f8ef7" : "#f1f5f9",
+                color: m.fromRole === "me" ? "#fff" : "#111827",
+                display: "inline-block",
+                padding: "6px 10px",
+                borderRadius: 8,
+                maxWidth: "80%",
+              }}
+            >
+              {m.text}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 6 }}>
+        <textarea
+          rows={3}
+          placeholder={`Відповідь ${targetRole}`}
+          value={reply[targetRole] || ""}
+          onChange={(e) => setReply({ ...reply, [targetRole]: e.target.value })}
+          style={{ width: "100%", padding: 8, borderRadius: 8, resize: "vertical" }}
+        />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+          <button
+            onClick={() => sendMessage(targetRole)}
+            style={{ padding: "8px 12px", borderRadius: 8, background: "#4f8ef7", color: "#fff", border: "none" }}
+          >
+            Надіслати
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
