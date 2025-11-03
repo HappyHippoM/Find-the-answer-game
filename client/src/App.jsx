@@ -12,10 +12,10 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [groupCount, setGroupCount] = useState(1);
 
-  const [name, setName] = useState(localStorage.getItem(LS_PREFIX + "name") || "");
-  const [role, setRole] = useState(localStorage.getItem(LS_PREFIX + "role") || "");
-  const [group, setGroup] = useState(Number(localStorage.getItem(LS_PREFIX + "group")) || 1);
-  const [cardImage, setCardImage] = useState(localStorage.getItem(LS_PREFIX + "card") || "");
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [group, setGroup] = useState(1);
+  const [cardImage, setCardImage] = useState("");
 
   const [messages, setMessages] = useState({});
   const [reply, setReply] = useState({});
@@ -44,18 +44,27 @@ export default function App() {
 
     socket.on("game_result", ({ message }) => alert(message));
 
-    if (!role && localStorage.getItem(LS_PREFIX + "name")) {
-      const savedName = localStorage.getItem(LS_PREFIX + "name");
-      const savedRole = localStorage.getItem(LS_PREFIX + "role");
-      const savedGroup = Number(localStorage.getItem(LS_PREFIX + "group") || 1);
-      socket.emit("reconnect_user", { name: savedName, role: savedRole, group: savedGroup }, (res) => {
-        if (res?.ok) {
-          setRole(res.role || savedRole);
-          setCardImage(`/cards/${res.role || savedRole}.jpg`);
-        } else {
-          clearLocal();
+    // Перевірка localStorage для автоматичного reconnect
+    const savedName = localStorage.getItem(LS_PREFIX + "name");
+    const savedRole = localStorage.getItem(LS_PREFIX + "role");
+    const savedGroup = Number(localStorage.getItem(LS_PREFIX + "group") || 1);
+
+    if (savedName && savedRole && savedGroup) {
+      socket.emit(
+        "reconnect_user",
+        { name: savedName, role: savedRole, group: savedGroup },
+        (res) => {
+          if (res?.ok) {
+            setName(savedName);
+            setRole(res.role || savedRole);
+            setGroup(res.group || savedGroup);
+            setCardImage(`/cards/${res.role || savedRole}.jpg`);
+          } else {
+            // Роль зайнята або сервер не дозволив — очищаємо localStorage
+            clearLocal();
+          }
         }
-      });
+      );
     }
 
     return () => socket.removeAllListeners();
@@ -74,8 +83,12 @@ export default function App() {
     localStorage.setItem(LS_PREFIX + "group", String(g));
     localStorage.setItem(LS_PREFIX + "card", card);
   };
+
   const clearLocal = () => {
-    localStorage.clear();
+    localStorage.removeItem(LS_PREFIX + "name");
+    localStorage.removeItem(LS_PREFIX + "role");
+    localStorage.removeItem(LS_PREFIX + "group");
+    localStorage.removeItem(LS_PREFIX + "card");
     setName("");
     setRole("");
     setGroup(1);
@@ -116,9 +129,9 @@ export default function App() {
   const logout = () => {
     clearLocal();
     socket.emit("logout");
-    window.location.reload();
   };
 
+  // ---------- UI ----------
   if (!role) {
     return (
       <div className="app">
@@ -141,7 +154,18 @@ export default function App() {
               <option key={i + 1} value={i + 1}>Група {i + 1}</option>
             ))}
           </select>
-          <button onClick={register} style={{ marginTop: 12, width: "100%", background: "#3b82f6", color: "#fff", border: "none", padding: 10, borderRadius: 8 }}>
+          <button
+            onClick={register}
+            style={{
+              marginTop: 12,
+              width: "100%",
+              background: "#3b82f6",
+              color: "#fff",
+              border: "none",
+              padding: 10,
+              borderRadius: 8,
+            }}
+          >
             Зареєструватися
           </button>
         </div>
@@ -155,7 +179,17 @@ export default function App() {
         <div style={{ textAlign: "center", marginBottom: 12 }}>
           <h3>Вітаємо, {name}!</h3>
           <div className="small">Ваша роль: <strong>{role}</strong> — група {group}</div>
-          <button onClick={logout} style={{ marginTop: 8, background: "#ef4444", color: "#fff", border: "none", padding: "6px 12px", borderRadius: 8 }}>
+          <button
+            onClick={logout}
+            style={{
+              marginTop: 8,
+              background: "#ef4444",
+              color: "#fff",
+              border: "none",
+              padding: "6px 12px",
+              borderRadius: 8,
+            }}
+          >
             Вийти
           </button>
         </div>
