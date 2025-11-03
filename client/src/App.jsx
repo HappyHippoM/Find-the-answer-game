@@ -4,7 +4,6 @@ import "./styles.css";
 
 const SERVER = import.meta.env.VITE_SERVER || "https://teamcommunicationgame.onrender.com";
 const socket = io(SERVER, { transports: ["websocket", "polling"] });
-
 const ROLES = ["A", "B", "C", "D", "E", "F"];
 
 export default function App() {
@@ -18,6 +17,7 @@ export default function App() {
   const [reply, setReply] = useState({});
   const scrollRefs = useRef({});
 
+  // ----- SOCKET EVENTS -----
   useEffect(() => {
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
@@ -34,7 +34,7 @@ export default function App() {
       localStorage.setItem("fta_card", card);
     });
 
-    socket.on("card", ({ role: r, image }) => setCardImage(image));
+    socket.on("card", ({ image }) => setCardImage(image));
 
     socket.on("private_message", ({ fromRole, fromName, text }) => {
       setMessages((m) => {
@@ -45,7 +45,8 @@ export default function App() {
 
     socket.on("game_result", ({ message }) => alert(message));
 
-    if (!role && localStorage.getItem("fta_name")) {
+    // --- авто-відновлення при старті ---
+    if (localStorage.getItem("fta_name") && !role) {
       socket.emit(
         "reconnect_user",
         {
@@ -58,20 +59,16 @@ export default function App() {
             setRole(res.role);
             setCardImage(`/cards/${res.role}.jpg`);
           } else {
-            localStorage.removeItem("fta_name");
-            localStorage.removeItem("fta_role");
-            localStorage.removeItem("fta_group");
-            localStorage.removeItem("fta_card");
+            localStorage.clear();
           }
         }
       );
     }
 
-    return () => {
-      socket.removeAllListeners();
-    };
+    return () => socket.removeAllListeners();
   }, []);
 
+  // автоскрол у чатах
   useEffect(() => {
     Object.keys(scrollRefs.current).forEach((k) => {
       const el = scrollRefs.current[k];
@@ -106,18 +103,16 @@ export default function App() {
     });
   };
 
+  // ----- UI -----
   if (!role) {
     return (
       <div className="app">
         <div className="card">
-          <div className="header">
-            <h2>Find-the-answer-game — реєстрація</h2>
-            <div className="small">Сервер: {SERVER}</div>
-          </div>
+          <h2>Find-the-answer-game — реєстрація</h2>
+          <div className="small">Сервер: {SERVER}</div>
 
           <label className="small">Ваше ім'я</label>
           <input
-            className="input"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Ім'я..."
@@ -137,21 +132,20 @@ export default function App() {
             ))}
           </select>
 
-          <div style={{ marginTop: 12 }}>
-            <button
-              onClick={register}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 8,
-                background: "#4f8ef7",
-                color: "#fff",
-                border: "none",
-                width: "100%",
-              }}
-            >
-              Зареєструватися
-            </button>
-          </div>
+          <button
+            onClick={register}
+            style={{
+              marginTop: 12,
+              width: "100%",
+              padding: "10px 14px",
+              borderRadius: 8,
+              background: "#4f8ef7",
+              color: "#fff",
+              border: "none",
+            }}
+          >
+            Зареєструватися
+          </button>
         </div>
       </div>
     );
@@ -161,11 +155,9 @@ export default function App() {
     <div className="app">
       <div className="card">
         <div className="header" style={{ flexDirection: "column", alignItems: "center" }}>
-          <div style={{ textAlign: "center", marginBottom: 12 }}>
-            <h3>Вітаємо, {name}!</h3>
-            <div className="small">
-              Ваша роль: <strong>{role}</strong> — група {group}
-            </div>
+          <h3>Вітаємо, {name}!</h3>
+          <div className="small">
+            Ваша роль: <strong>{role}</strong> — група {group}
           </div>
 
           <img
@@ -175,23 +167,22 @@ export default function App() {
               width: "100%",
               maxWidth: 400,
               borderRadius: 12,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-              objectFit: "cover",
+              marginTop: 12,
               marginBottom: 16,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
             }}
           />
         </div>
 
-        {role !== "B" ? (
-          <ChatPanel
-            targetRole="B"
-            messages={messages}
-            reply={reply}
-            setReply={setReply}
-            sendMessage={sendMessage}
-          />
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+        {/* B бачить усіх, інші — лише B */}
+        {role === "B" ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: 10,
+            }}
+          >
             {ROLES.filter((r) => r !== "B").map((r) => (
               <ChatPanel
                 key={r}
@@ -200,10 +191,18 @@ export default function App() {
                 reply={reply}
                 setReply={setReply}
                 sendMessage={sendMessage}
-                compact={true} // компактний вигляд для B
+                compact
               />
             ))}
           </div>
+        ) : (
+          <ChatPanel
+            targetRole="B"
+            messages={messages}
+            reply={reply}
+            setReply={setReply}
+            sendMessage={sendMessage}
+          />
         )}
       </div>
     </div>
@@ -213,25 +212,41 @@ export default function App() {
 // ---------- ChatPanel ----------
 const ChatPanel = ({ targetRole, messages, reply, setReply, sendMessage, compact }) => {
   const scrollRef = useRef(null);
-
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages[targetRole]]);
 
   return (
-    <div style={{ marginBottom: compact ? 8 : 12 }}>
-      <div style={{ fontWeight: "bold", marginBottom: compact ? 4 : 6 }}>{targetRole}</div>
+    <div
+      style={{
+        marginBottom: compact ? 8 : 12,
+        padding: compact ? 6 : 10,
+        border: "1px solid #e5e7eb",
+        borderRadius: 10,
+        background: "#fff",
+      }}
+    >
+      <div
+        style={{
+          fontWeight: "bold",
+          marginBottom: 6,
+          fontSize: 13,
+          textAlign: "center",
+          color: "#374151",
+        }}
+      >
+        Чат із {targetRole}
+      </div>
 
       <div
         ref={scrollRef}
         style={{
-          maxHeight: compact ? 140 : 180,
+          maxHeight: compact ? 160 : 220,
           overflowY: "auto",
           padding: 6,
+          background: "#f9fafb",
           borderRadius: 8,
-          border: "1px solid #e5e7eb",
-          background: "#fff",
         }}
       >
         {(messages[targetRole] || []).map((m, i) => (
@@ -240,17 +255,17 @@ const ChatPanel = ({ targetRole, messages, reply, setReply, sendMessage, compact
             style={{
               display: "flex",
               justifyContent: m.fromRole === "me" ? "flex-end" : "flex-start",
-              marginBottom: 4,
+              marginBottom: 5,
             }}
           >
             <div
               style={{
-                background: m.fromRole === "me" ? "#4f8ef7" : "#f1f5f9",
+                background: m.fromRole === "me" ? "#4f8ef7" : "#e5e7eb",
                 color: m.fromRole === "me" ? "#fff" : "#111827",
-                padding: "4px 8px",
-                borderRadius: 8,
-                fontSize: 12,
-                maxWidth: "80%",
+                padding: "6px 10px",
+                borderRadius: 12,
+                fontSize: 13,
+                maxWidth: "75%",
                 wordBreak: "break-word",
               }}
             >
@@ -270,15 +285,16 @@ const ChatPanel = ({ targetRole, messages, reply, setReply, sendMessage, compact
           padding: 6,
           borderRadius: 8,
           resize: "vertical",
-          marginTop: 4,
+          marginTop: 6,
           fontSize: 12,
         }}
       />
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
         <button
           onClick={() => sendMessage(targetRole)}
           style={{
-            padding: "6px 10px",
+            padding: "6px 12px",
             borderRadius: 8,
             background: "#4f8ef7",
             color: "#fff",
