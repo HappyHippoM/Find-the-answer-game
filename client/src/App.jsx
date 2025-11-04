@@ -49,10 +49,8 @@ export default function App() {
     if (savedName) {
       socket.emit("check_name", { name: savedName }, (res) => {
         if (res.exists) {
-          // Користувач з таким ім'ям вже в грі → показуємо реєстрацію
           clearLocal();
         } else {
-          // Користувач не знайдений → можна реєструватися автоматично
           setName(savedName);
         }
         setLoading(false);
@@ -119,7 +117,6 @@ export default function App() {
     socket.emit("logout");
   };
 
-  // ---------- UI ----------
   if (loading) return <div className="app">Перевірка доступності ролі...</div>;
 
   if (!role) {
@@ -141,7 +138,9 @@ export default function App() {
             style={{ padding: 10, borderRadius: 8, width: "100%" }}
           >
             {Array.from({ length: groupCount }, (_, i) => (
-              <option key={i + 1} value={i + 1}>Група {i + 1}</option>
+              <option key={i + 1} value={i + 1}>
+                Група {i + 1}
+              </option>
             ))}
           </select>
           <button
@@ -168,7 +167,9 @@ export default function App() {
       <div className="card">
         <div style={{ textAlign: "center", marginBottom: 12 }}>
           <h3>Вітаємо, {name}!</h3>
-          <div className="small">Ваша роль: <strong>{role}</strong> — група {group}</div>
+          <div className="small">
+            Ваша роль: <strong>{role}</strong> — група {group}
+          </div>
           <button
             onClick={logout}
             style={{
@@ -199,7 +200,13 @@ export default function App() {
         />
 
         {role === "B" ? (
-          <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+          <div
+            style={{
+              display: "grid",
+              gap: 8,
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            }}
+          >
             {ROLES.filter((r) => r !== "B").map((r) => (
               <ChatCard
                 key={r}
@@ -230,6 +237,7 @@ export default function App() {
   );
 }
 
+// 🔹 Додано обробку Enter
 function ChatCard({ meRole, targetRole, messages, value, onChange, onSend, compact }) {
   const scrollRef = useRef(null);
   useEffect(() => {
@@ -239,9 +247,25 @@ function ChatCard({ meRole, targetRole, messages, value, onChange, onSend, compa
 
   const canSend = canSendToClient(meRole, targetRole);
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (canSend && value.trim()) onSend();
+    }
+  };
+
   return (
-    <div style={{ padding: compact ? 6 : 12, background: "#fff", borderRadius: 12, boxShadow: "0 2px 6px rgba(15,23,42,0.06)" }}>
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, textAlign: "center" }}>Чат з {targetRole}</div>
+    <div
+      style={{
+        padding: compact ? 6 : 12,
+        background: "#fff",
+        borderRadius: 12,
+        boxShadow: "0 2px 6px rgba(15,23,42,0.06)",
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, textAlign: "center" }}>
+        Чат з {targetRole}
+      </div>
       <div
         ref={scrollRef}
         style={{
@@ -255,18 +279,31 @@ function ChatCard({ meRole, targetRole, messages, value, onChange, onSend, compa
         {messages.map((m, i) => {
           const isMe = m.fromRole === "me";
           return (
-            <div key={i} style={{ display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", marginBottom: 4 }}>
-              <div style={{
-                background: isMe ? "#3b82f6" : "#e5e7eb",
-                color: isMe ? "#fff" : "#111827",
-                padding: "5px 9px",
-                borderRadius: 14,
-                fontSize: 12,
-                lineHeight: "1.3",
-                maxWidth: "75%",
-                wordBreak: "break-word"
-              }}>
-                {!isMe && <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>{m.fromName}</div>}
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                justifyContent: isMe ? "flex-end" : "flex-start",
+                marginBottom: 4,
+              }}
+            >
+              <div
+                style={{
+                  background: isMe ? "#3b82f6" : "#e5e7eb",
+                  color: isMe ? "#fff" : "#111827",
+                  padding: "5px 9px",
+                  borderRadius: 14,
+                  fontSize: 12,
+                  lineHeight: "1.3",
+                  maxWidth: "75%",
+                  wordBreak: "break-word",
+                }}
+              >
+                {!isMe && (
+                  <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>
+                    {m.fromName}
+                  </div>
+                )}
                 {m.text}
               </div>
             </div>
@@ -278,9 +315,12 @@ function ChatCard({ meRole, targetRole, messages, value, onChange, onSend, compa
         <textarea
           rows={compact ? 2 : 3}
           disabled={!canSend}
-          placeholder={canSend ? `Написати ${targetRole}...` : "Надсилання заборонено"}
+          placeholder={
+            canSend ? `Написати ${targetRole}...` : "Надсилання заборонено"
+          }
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
           style={{
             flex: 1,
             padding: 6,
